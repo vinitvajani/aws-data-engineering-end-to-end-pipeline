@@ -44,12 +44,14 @@ Event-driven ingestion, serverless orchestration, scalable ETL, analytics-ready 
 ---
 
 ## Repository Structure
-architecture/        -> Architecture diagram  
-glue_jobs/           -> Glue ETL scripts  
-stepfunctions/       -> Step Functions orchestration  
-sql/                 -> Athena & Redshift schemas  
-docs/                -> System design, security & failure docs  
 
+```text
+architecture/        -> Architecture diagram
+glue_jobs/           -> Glue ETL scripts
+stepfunctions/       -> Step Functions orchestration
+sql/                 -> Athena & Redshift schemas
+docs/                -> System design, security & failure docs
+```
 ---
 
 ## Key Features
