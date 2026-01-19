@@ -1,0 +1,81 @@
+{
+  "Comment": "End-to-end AWS Data Engineering Pipeline Orchestration",
+  "StartAt": "StartGlueJob",
+  "States": {
+    "StartGlueJob": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "raw-to-processed-etl-job"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 60,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "RunAthenaCTAS"
+    },
+    "RunAthenaCTAS": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::athena:startQueryExecution.sync",
+      "Parameters": {
+        "QueryString": "CREATE TABLE curated.orders_curated AS SELECT * FROM processed.orders_processed;",
+        "QueryExecutionContext": { "Database": "data_eng_db" },
+        "ResultConfiguration": {
+          "OutputLocation": "s3://mycompany-orders/athena-results/"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 60,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "LoadToRedshift"
+    },
+    "LoadToRedshift": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::redshift-data:executeStatement.sync",
+      "Parameters": {
+        "ClusterIdentifier": "redshift-cluster",
+        "Database": "analytics",
+        "Sql": "COPY fact_orders FROM 's3://mycompany-orders/curated/' IAM_ROLE 'arn:aws:iam::123456789012:role/redshift-role' FORMAT AS PARQUET;"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 60,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "Success"
+    },
+    "Success": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:putItem",
+      "Parameters": {
+        "TableName": "pipeline_metadata",
+        "Item": {
+          "status": { "S": "SUCCESS" },
+          "timestamp": { "S.$": "$$.Execution.StartTime" }
+        }
+      },
+      "Next": "NotifySuccess"
+    },
+    "NotifySuccess": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "arn:aws:sns:region:account:success-topic",
+        "Message": "Data pipeline completed successfully"
+      },
+      "End": true
+    }
+  }
+}
